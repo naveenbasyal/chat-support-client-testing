@@ -1,31 +1,47 @@
-import  { useEffect, useState } from 'react';
-import socket from './services/socket';
+import { useEffect, useState } from 'react'
+import socket from './services/socket'
 
 const AdminChat = () => {
-  const [messages, setMessages] = useState<string[]>([]);
-  const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState<string[]>([])
+  const [message, setMessage] = useState('')
+  const [currentUserId] = useState('01HQ2J3K5N6M7P8R9T0V1W2Y6') // Admin will choose the user to chat with
+
+  const adminId = '01HQ2J3K5N6M7P8R9T0V1W2Y4'
 
   useEffect(() => {
-    // Listen for user messages
-    socket.on('newMessageToAdmin', (data) => {
-        console.log("New message from client",data)
-      setMessages((prevMessages) => [...prevMessages, `User: ${data.message}`]);
-    });
+    if (!currentUserId) return
 
-    // Clean up on component unmount
+    // Join the chat for the specific user
+    socket.emit('joinChat', currentUserId)
+
+    // Load chat history for the user
+    socket.on('loadChatHistory', (conversation) => {
+      console.log("Conversation history: ", conversation)
+      setMessages(conversation.map((msg: { from: string, message: string }) => `${msg.from === adminId ? 'You' : 'User'}: ${msg.message}`))
+    })
+
+    // Listen for new messages from the user
+    socket.on('newMessageToAdmin', (data) => {
+      if (data.senderId === currentUserId) {
+        setMessages((prevMessages) => [...prevMessages, `User: ${data.message}`])
+      }
+    })
+
+    // Cleanup listeners on unmount
     return () => {
-      socket.off('newMessageToAdmin');
-    };
-  }, []);
+      socket.off('loadChatHistory')
+      socket.off('newMessageToAdmin')
+    }
+  }, [currentUserId]) // Reload when the selected user changes
 
   const sendMessage = () => {
-    socket.emit('adminMessage', {
-      receiverId: '01HQ2J3K5N6M7P8R9T0V1W2Y6', // Replace with actual client ID
-      message
-    });
-    setMessages((prevMessages) => [...prevMessages, `You: ${message}`]);
-    setMessage('');
-  };
+    if (!message || !currentUserId) return
+
+    // Send the message to the currently selected user
+    socket.emit('adminMessage', { receiverId: currentUserId, message })
+    setMessages((prevMessages) => [...prevMessages, `You: ${message}`])
+    setMessage('') // Clear the input
+  }
 
   return (
     <div>
@@ -35,14 +51,16 @@ const AdminChat = () => {
           <p key={index}>{msg}</p>
         ))}
       </div>
+
+      {/* Input field for admin to send message */}
       <input
         type="text"
         value={message}
         onChange={(e) => setMessage(e.target.value)}
       />
-      <button onClick={sendMessage}>Send</button>
+      <button onClick={sendMessage} disabled={!currentUserId}>Send</button>
     </div>
-  );
-};
+  )
+}
 
-export default AdminChat;
+export default AdminChat

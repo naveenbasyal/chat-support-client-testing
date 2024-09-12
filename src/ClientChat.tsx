@@ -1,31 +1,39 @@
-import  { useEffect, useState } from 'react';
-import socket from './services/socket';
+import { useEffect, useState } from 'react'
+import socket from './services/socket'
 
 const ClientChat = () => {
-  const [messages, setMessages] = useState<string[]>([]);
-  const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState<string[]>([])
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
-    // Listen for messages from the admin
-    socket.on('newMessageFromAdmin', (data) => {
-        console.log("New message from admin",data)
-      setMessages((prevMessages) => [...prevMessages, `Admin: ${data.message}`]);
-    });
+    // Join the chat and load previous conversation history
+    const clientId = '01HQ2J3K5N6M7P8R9T0V1W2Y6'
+    socket.emit('joinChat', clientId)
 
-    // Clean up on component unmount
+    // Load chat history
+    socket.on('loadChatHistory', (conversation) => {
+      console.log("conversation----", conversation)
+      setMessages(conversation.map((msg: { from: string; message: string }) => `${msg.from === clientId ? 'You' : 'Admin'}: ${msg.message}`))
+    })
+
+    // Listen for new admin messages
+    socket.on('newMessageFromAdmin', (data) => {
+      setMessages((prevMessages) => [...prevMessages, `Admin: ${data.message}`])
+    })
+
+    // Clean up event listeners on unmount
     return () => {
-      socket.off('newMessageFromAdmin');
-    };
-  }, []);
+      socket.off('loadChatHistory')
+      socket.off('newMessageFromAdmin')
+    }
+  }, [])
 
   const sendMessage = () => {
-    socket.emit('userMessage', {
-      senderId: '01HQ2J3K5N6M7P8R9T0V1W2Y6', //client id or user id
-      message
-    });
-    setMessages((prevMessages) => [...prevMessages, `You: ${message}`]);
-    setMessage('');
-  };
+    const clientId = '01HQ2J3K5N6M7P8R9T0V1W2Y6'
+    socket.emit('userMessage', { senderId: clientId, message })
+    setMessages((prevMessages) => [...prevMessages, `You: ${message}`])
+    setMessage('')
+  }
 
   return (
     <div>
@@ -42,7 +50,7 @@ const ClientChat = () => {
       />
       <button onClick={sendMessage}>Send</button>
     </div>
-  );
-};
+  )
+}
 
-export default ClientChat;
+export default ClientChat
